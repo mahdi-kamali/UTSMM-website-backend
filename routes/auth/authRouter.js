@@ -121,7 +121,10 @@ router.post("/register", async (request, response, next) => {
         )
 
 
-        return response.json(token)
+        return response.json({
+            token: token , 
+            message : "You are Successfully Registred."
+        })
 
 
 
@@ -156,6 +159,11 @@ router.post("/login", async (request, respsonse, next) => {
             }
         )
 
+
+      
+
+   
+
         if (!user) {
             throw new Error("Email or password wrong !")
         }
@@ -165,6 +173,7 @@ router.post("/login", async (request, respsonse, next) => {
             accessToken,
             { expiresIn: expireTime }
         )
+
 
 
         return respsonse.json({
