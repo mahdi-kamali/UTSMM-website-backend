@@ -26,6 +26,12 @@ const EmailVerifyGiftModel = require("../../../models/gifts/EmailVerifyGiftModel
 const RetweetGiftModel = require("../../../models/RetweetGiftModel");
 const AffiliateTransactionModel = require("../../../models/affiliates/AffiliateTransactionModel");
 const moment = require("moment");
+const {
+  checkoutWithCrpyomous,
+} = require("../../../payments-services/Cryptomous");
+const {
+  checkoutWithPerfectMoney,
+} = require("../../../payments-services/PerfectMoney");
 
 router.use(uploader("images/users").any());
 
@@ -416,42 +422,6 @@ router.get("/add-found/methods", async (req, res) => {
   return res.json(methods);
 });
 
-async function checkoutWithCrpyomous(method, amount, user) {
-  try {
-    const checkout = await CheckoutModel({
-      method: method,
-      amount: amount,
-      userID: user._id,
-    });
-    await checkout.save();
-
-    const data = {
-      amount: amount.total + "",
-      currency: "usd",
-      order_id: checkout._id,
-    };
-
-    const sign = crypto
-      .createHash("md5")
-      .update(
-        Buffer.from(JSON.stringify(data)).toString("base64") + CRYPTOMUS.API_KEY
-      )
-      .digest("hex");
-
-    const result = await axios.post(CRYPTOMUS.BASE_URl, data, {
-      headers: {
-        merchant: CRYPTOMUS.MERCHANT_ID,
-        sign: sign,
-      },
-    });
-
-    return result.data.result.url;
-  } catch (err) {
-    console.log(err);
-    throw err;
-  }
-}
-
 // Check-Out
 router.post("/add-found/create-checkout", async (req, res, next) => {
   try {
@@ -482,40 +452,18 @@ router.post("/add-found/create-checkout", async (req, res, next) => {
 
     switch (methodName) {
       case "cryptomus": {
-        checkoutWithCrpyomous(method, amount, user)
-          .then((response) => {
-            return res.json(response);
-          })
-          .catch((err) => {
-            return next(err);
-          });
-        return;
+        const result = await checkoutWithCrpyomous(method, amount, user);
+        return res.json(result);
       }
       case "perfectmoney": {
-        return res.json({
-          action: "redirect",
-          url: PERFECT_MONEY.PERFECT_MONEY_BASE_URL,
-          method: "POST",
-          headers: {
-          },
-          body: {
-            PAYEE_ACCOUNT: PERFECT_MONEY.PERFECT_MONEY_PAYEE_ACCOUNT,
-            PAYEE_NAME: PERFECT_MONEY.PERFECT_MONEY_PAYEE_NAME,
-            PAYMENT_AMOUNT: amount.total,
-            PAYMENT_UNITS: PERFECT_MONEY.PERFECT_MONEY_PAYMENT_UNITS,
-            STATUS_URL:
-              "http://localhost:3001/api/payments-method/perfect-money-status",
-            PAYMENT_URL:
-              "http://localhost:3001/api/payments-method/perfect-money-status",
-            NOPAYMENT_URL:
-              "http://localhost:3001/api/payments-method/perfect-money-status",
-          },
-        });
+        const result = await checkoutWithPerfectMoney(method, user, amount);
+        return res.json(result);
       }
     }
 
     return next("Invalid Method!");
   } catch (err) {
+    console.log(err);
     return next(err);
   }
 });
